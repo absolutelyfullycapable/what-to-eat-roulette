@@ -297,8 +297,7 @@ wheel.addEventListener("transitionend", (event) => {
   }
 });
 
-// 서버 없이 파일을 연 경우를 위한 안내 + 기본 예시 위치
-locationInput.value = "네이버 1784";
+// 서버 없이 파일을 연 경우를 위한 안내
 if (location.protocol === "file:") {
   showModalError(
     "파일로 바로 열면 식당 검색이 안 돼요. 터미널에서 python3 server.py 실행 후 http://127.0.0.1:8765 로 열어 주세요."
