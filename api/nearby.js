@@ -203,12 +203,31 @@ function parseRestaurants(data, lat, lng) {
   }
 
   scored.sort((a, b) => a[0] - b[0]);
-  return scored.slice(0, 15).map((item) => item[1]);
+  const pool = scored.slice(0, 60).map((item) => item[1]);
+  if (pool.length <= 15) {
+    for (let i = pool.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    return pool;
+  }
+
+  const picked = [];
+  const remaining = pool.slice();
+  while (picked.length < 15 && remaining.length) {
+    const index = Math.floor(Math.random() * remaining.length);
+    picked.push(remaining.splice(index, 1)[0]);
+  }
+  for (let i = picked.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [picked[i], picked[j]] = [picked[j], picked[i]];
+  }
+  return picked;
 }
 
 async function fetchRestaurants(lat, lng) {
   let restaurants = parseRestaurants(await fetchOverpass(lat, lng, 1500), lat, lng);
-  if (restaurants.length < 8) {
+  if (restaurants.length < 15) {
     restaurants = parseRestaurants(await fetchOverpass(lat, lng, 2500), lat, lng);
   }
   return restaurants;

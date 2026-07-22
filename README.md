@@ -14,7 +14,7 @@
 
 - 위치 검색 → 후보 목록에서 선택
 - 현재 위치 사용
-- 근처 식당 최대 15곳으로 룰렛 구성
+- 근처 식당 후보 중 매번 15곳을 랜덤으로 뽑아 룰렛 구성
 - 돌리기 / 다시 돌리기
 
 ---
@@ -24,7 +24,7 @@
 - 프론트: HTML / CSS / Vanilla JS
 - API: Vercel Serverless (`/api/places`, `/api/nearby`)
 - 위치 검색: 네이버 지역 검색(선택) + OpenStreetMap Nominatim
-- 근처 식당: OpenStreetMap Overpass (API 키·요금 없음)
+- 근처 식당: OpenStreetMap Overpass 후보 중 15곳 랜덤 (API 키·요금 없음)
 
 ---
 

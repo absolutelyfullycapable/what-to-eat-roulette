@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import random
 import re
 import ssl
 import time
@@ -402,8 +403,15 @@ out center tags;
         seen.add(name)
         scored.append((haversine_m(lat, lng, elat, elng), name))
 
+    # 가까운 순으로 정렬한 뒤, 후보 풀에서 매번 15곳을 랜덤 추출
     scored.sort(key=lambda item: item[0])
-    return [name for _, name in scored[:15]]
+    pool = [name for _, name in scored[:60]]
+    if len(pool) <= 15:
+        random.shuffle(pool)
+        return pool
+    picked = random.sample(pool, 15)
+    random.shuffle(picked)
+    return picked
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -468,7 +476,7 @@ class Handler(SimpleHTTPRequestHandler):
                 )
                 return
             restaurants = fetch_restaurants(lat, lng, radius_m=1500)
-            if len(restaurants) < 8:
+            if len(restaurants) < 15:
                 restaurants = fetch_restaurants(lat, lng, radius_m=2500)
 
             if not restaurants:
