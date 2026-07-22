@@ -185,6 +185,7 @@ module.exports = async function handler(req, res) {
     const query = (url.searchParams.get("query") || "").trim();
     const latRaw = (url.searchParams.get("lat") || "").trim();
     const lngRaw = (url.searchParams.get("lng") || "").trim();
+    const nameRaw = (url.searchParams.get("name") || "").trim();
 
     let placeName = "선택한 위치";
     let lat;
@@ -193,7 +194,7 @@ module.exports = async function handler(req, res) {
     if (latRaw && lngRaw) {
       lat = Number(latRaw);
       lng = Number(lngRaw);
-      placeName = "현재 위치";
+      placeName = nameRaw || "현재 위치";
     } else if (query) {
       const place = await geocodePlace(query);
       placeName = place.name;

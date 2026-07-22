@@ -16,7 +16,7 @@
       href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=9" />
+    <link rel="stylesheet" href="style.css?v=11" />
   </head>
   <body>
     <div class="ambiance" aria-hidden="true"></div>
@@ -36,12 +36,21 @@
           autocomplete="off"
         />
 
+        <div class="place-results" id="placeResults" hidden>
+          <p class="place-results-label" id="placeResultsLabel">검색 결과</p>
+          <ul class="place-list" id="placeList" role="listbox" aria-label="위치 검색 결과"></ul>
+        </div>
+
         <p class="modal-error" id="modalError" hidden></p>
 
         <div class="modal-actions">
           <button type="button" class="btn-secondary" id="geoBtn">현재 위치 사용</button>
-          <button type="button" class="btn-primary" id="startBtn">이 위치로 시작</button>
+          <button type="button" class="btn-primary" id="startBtn">위치 검색</button>
         </div>
+
+        <p class="modal-help" id="modalHelp">
+          위치를 검색한 뒤 후보를 고르거나, 현재 위치를 사용해 주세요.
+        </p>
       </div>
     </div>
 
@@ -100,6 +109,6 @@
       </section>
     </main>
 
-    <script src="script.js?v=9"></script>
+    <script src="script.js?v=11"></script>
   </body>
 </html>

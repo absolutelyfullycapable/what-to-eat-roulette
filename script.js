@@ -17,6 +17,9 @@ const startBtn = document.getElementById("startBtn");
 const geoBtn = document.getElementById("geoBtn");
 const changeLocationBtn = document.getElementById("changeLocationBtn");
 const locationLabel = document.getElementById("locationLabel");
+const placeResults = document.getElementById("placeResults");
+const placeResultsLabel = document.getElementById("placeResultsLabel");
+const placeList = document.getElementById("placeList");
 const app = document.getElementById("app");
 
 let restaurants = [];
@@ -25,6 +28,7 @@ let currentRotation = 0;
 let spinning = false;
 let pendingIndex = null;
 let ready = false;
+let placeCandidates = [];
 
 function sliceAngle() {
   return restaurants.length ? 360 / restaurants.length : 24;
@@ -154,6 +158,13 @@ function clearModalError() {
   modalError.textContent = "";
 }
 
+function clearPlaceResults() {
+  placeCandidates = [];
+  placeList.innerHTML = "";
+  placeResults.hidden = true;
+  placeResultsLabel.textContent = "검색 결과";
+}
+
 function openModal() {
   locationModal.classList.add("is-open");
   locationInput.focus();
@@ -163,16 +174,44 @@ function closeModal() {
   locationModal.classList.remove("is-open");
 }
 
-function setModalLoading(isLoading) {
+function setModalLoading(isLoading, mode = "nearby") {
   startBtn.disabled = isLoading;
   geoBtn.disabled = isLoading;
-  startBtn.textContent = isLoading ? "식당 찾는 중..." : "이 위치로 시작";
-  geoBtn.textContent = isLoading ? "위치 확인 중..." : "현재 위치 사용";
+  placeList.querySelectorAll("button").forEach((btn) => {
+    btn.disabled = isLoading;
+  });
+
+  if (isLoading) {
+    startBtn.textContent = mode === "search" ? "검색 중..." : "식당 찾는 중...";
+    geoBtn.textContent = "위치 확인 중...";
+  } else {
+    startBtn.textContent = "위치 검색";
+    geoBtn.textContent = "현재 위치 사용";
+  }
 }
 
-async function fetchNearby({ query, lat, lng }) {
+function explainFetchError(error) {
+  const message = String(error.message || error);
+  if (message.includes("Failed to fetch") || message.includes("fetch")) {
+    return "서버에 연결되지 않았어요. 잠시 후 다시 시도하거나, 로컬이면 python3 server.py 실행 후 http://127.0.0.1:8765 로 열어 주세요.";
+  }
+  return message;
+}
+
+async function fetchPlaces(query) {
+  const params = new URLSearchParams({ query });
+  const response = await fetch(`/api/places?${params.toString()}`);
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || "위치를 검색하지 못했어요.");
+  }
+  return data;
+}
+
+async function fetchNearby({ query, lat, lng, name }) {
   const params = new URLSearchParams();
   if (query) params.set("query", query);
+  if (name) params.set("name", name);
   if (lat != null && lng != null) {
     params.set("lat", String(lat));
     params.set("lng", String(lng));
@@ -186,30 +225,91 @@ async function fetchNearby({ query, lat, lng }) {
   return data;
 }
 
+function renderPlaceResults(places) {
+  placeCandidates = places;
+  placeList.innerHTML = "";
+
+  places.forEach((place, index) => {
+    const item = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "place-item";
+    button.setAttribute("role", "option");
+    button.dataset.index = String(index);
+
+    const title = document.createElement("span");
+    title.className = "place-item-name";
+    title.textContent = place.name;
+
+    const address = document.createElement("span");
+    address.className = "place-item-address";
+    address.textContent = place.address || place.label || "";
+
+    button.append(title, address);
+    button.addEventListener("click", () => {
+      selectPlace(place);
+    });
+
+    item.appendChild(button);
+    placeList.appendChild(item);
+  });
+
+  placeResultsLabel.textContent = `검색 결과 ${places.length}곳 · 하나를 고르세요`;
+  placeResults.hidden = false;
+}
+
+async function searchPlaces() {
+  const query = locationInput.value.trim();
+  if (!query) {
+    showModalError("위치를 입력해 주세요. 예: 네이버 1784");
+    locationInput.focus();
+    return;
+  }
+
+  clearModalError();
+  clearPlaceResults();
+  setModalLoading(true, "search");
+
+  try {
+    const data = await fetchPlaces(query);
+    const places = data.places || [];
+    if (!places.length) {
+      throw new Error("검색 결과가 없어요. 다른 표현으로 다시 입력해 보세요.");
+    }
+    renderPlaceResults(places);
+  } catch (error) {
+    showModalError(explainFetchError(error));
+  } finally {
+    setModalLoading(false);
+  }
+}
+
 async function applyLocation(payload) {
   clearModalError();
-  setModalLoading(true);
+  setModalLoading(true, "nearby");
   try {
     const data = await fetchNearby(payload);
     restaurants = (data.restaurants || []).slice(0, 15);
     if (restaurants.length < 2) {
       throw new Error("룰렛을 만들 식당이 부족해요. 다른 위치를 시도해 주세요.");
     }
-    locationTitle = data.location || payload.query || "선택한 위치";
+    locationTitle = data.location || payload.name || payload.query || "선택한 위치";
+    clearPlaceResults();
     setReadyUI();
     closeModal();
   } catch (error) {
-    const message = String(error.message || error);
-    if (message.includes("Failed to fetch") || message.includes("fetch")) {
-      showModalError(
-        "서버에 연결되지 않았어요. 터미널에서 python3 server.py 실행 후 http://127.0.0.1:8765 로 열어 주세요."
-      );
-    } else {
-      showModalError(message);
-    }
+    showModalError(explainFetchError(error));
   } finally {
     setModalLoading(false);
   }
+}
+
+async function selectPlace(place) {
+  await applyLocation({
+    lat: place.lat,
+    lng: place.lng,
+    name: place.name,
+  });
 }
 
 function spin() {
@@ -247,13 +347,7 @@ function finishSpin() {
 }
 
 startBtn.addEventListener("click", () => {
-  const query = locationInput.value.trim();
-  if (!query) {
-    showModalError("위치를 입력해 주세요. 예: 네이버 1784");
-    locationInput.focus();
-    return;
-  }
-  applyLocation({ query });
+  searchPlaces();
 });
 
 locationInput.addEventListener("keydown", (event) => {
@@ -262,20 +356,29 @@ locationInput.addEventListener("keydown", (event) => {
   }
 });
 
+locationInput.addEventListener("input", () => {
+  if (placeCandidates.length) {
+    clearPlaceResults();
+  }
+  clearModalError();
+});
+
 geoBtn.addEventListener("click", () => {
   clearModalError();
+  clearPlaceResults();
   if (!navigator.geolocation) {
     showModalError("이 브라우저에서는 현재 위치를 사용할 수 없어요.");
     return;
   }
 
-  setModalLoading(true);
+  setModalLoading(true, "nearby");
   navigator.geolocation.getCurrentPosition(
     (position) => {
       setModalLoading(false);
       applyLocation({
         lat: position.coords.latitude,
         lng: position.coords.longitude,
+        name: "현재 위치",
       });
     },
     () => {
@@ -287,6 +390,7 @@ geoBtn.addEventListener("click", () => {
 });
 
 changeLocationBtn.addEventListener("click", () => {
+  clearModalError();
   openModal();
 });
 
@@ -300,7 +404,7 @@ wheel.addEventListener("transitionend", (event) => {
 // 서버 없이 파일을 연 경우를 위한 안내
 if (location.protocol === "file:") {
   showModalError(
-    "파일로 바로 열면 식당 검색이 안 돼요. 터미널에서 python3 server.py 실행 후 http://127.0.0.1:8765 로 열어 주세요."
+    "파일로 바로 열면 식당 검색이 안 돼요. 배포 사이트에서 열거나, 로컬에서는 python3 server.py 후 http://127.0.0.1:8765 로 열어 주세요."
   );
 }
 openModal();
