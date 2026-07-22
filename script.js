@@ -20,6 +20,7 @@ const locationLabel = document.getElementById("locationLabel");
 const placeResults = document.getElementById("placeResults");
 const placeResultsLabel = document.getElementById("placeResultsLabel");
 const placeList = document.getElementById("placeList");
+const hubBtn = document.getElementById("hubBtn");
 const app = document.getElementById("app");
 
 let restaurants = [];
@@ -119,6 +120,7 @@ function setSpinningUI() {
   resultHint.textContent = "잠시만 기다려 주세요";
   spinBtnLabel.textContent = "추첨 중";
   spinBtnSub.textContent = "결과가 곧 나와요";
+  if (hubBtn) hubBtn.disabled = true;
 }
 
 function setDoneUI(picked) {
@@ -129,12 +131,14 @@ function setDoneUI(picked) {
   resultHint.textContent = `${locationTitle} 근처 · 여기로 가요`;
   spinBtnLabel.textContent = "다시 돌리기";
   spinBtnSub.textContent = "다른 식당 다시 뽑기";
+  if (hubBtn) hubBtn.disabled = false;
 }
 
 function setReadyUI() {
   ready = true;
   app.classList.remove("is-locked");
   spinBtn.disabled = false;
+  if (hubBtn) hubBtn.disabled = false;
   locationLabel.textContent = `${locationTitle} · EAT`;
   resultMeta.textContent = `근처 ${restaurants.length}곳`;
   statusChip.textContent = "대기 중";
@@ -394,6 +398,10 @@ changeLocationBtn.addEventListener("click", () => {
 });
 
 spinBtn.addEventListener("click", spin);
+if (hubBtn) {
+  hubBtn.disabled = true;
+  hubBtn.addEventListener("click", spin);
+}
 wheel.addEventListener("transitionend", (event) => {
   if (event.target === wheel && event.propertyName === "transform") {
     finishSpin();

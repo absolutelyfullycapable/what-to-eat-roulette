@@ -519,10 +519,13 @@ h1 {
   z-index: 3;
   width: 68px;
   height: 68px;
+  padding: 0;
   transform: translate(-50%, -50%);
   border-radius: 50%;
   display: grid;
   place-items: center;
+  appearance: none;
+  cursor: pointer;
   background:
     radial-gradient(circle at 35% 30%, #ffffff 0%, #eef6f4 55%, #d9ebe7 100%);
   border: 5px solid #fff;
@@ -530,6 +533,18 @@ h1 {
     0 12px 28px rgba(16, 33, 31, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.95);
   transition: transform 0.25s ease;
+}
+
+.hub:hover:not(:disabled) {
+  transform: translate(-50%, -50%) scale(1.05);
+}
+
+.hub:active:not(:disabled) {
+  transform: translate(-50%, -50%) scale(0.96);
+}
+
+.hub:disabled {
+  cursor: default;
 }
 
 .hub span {
