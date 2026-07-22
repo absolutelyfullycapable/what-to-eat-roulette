@@ -692,10 +692,12 @@ h1 {
   font-weight: 500;
   color: #92a29e;
   letter-spacing: -0.015em;
+  line-height: 1.4;
+  word-break: keep-all;
 }
 
 .result-card.is-done .result-hint {
-  color: var(--accent-deep);
+  color: var(--muted);
   font-weight: 600;
 }
 

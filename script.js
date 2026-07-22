@@ -59,6 +59,22 @@ function slicePath(cx, cy, r, startDeg, endDeg) {
   return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
 }
 
+function restaurantName(item) {
+  return typeof item === "string" ? item : item?.name || "";
+}
+
+function normalizeRestaurant(item) {
+  if (typeof item === "string") {
+    return { name: item, address: "", lat: null, lng: null };
+  }
+  return {
+    name: item?.name || "",
+    address: item?.address || "",
+    lat: item?.lat ?? null,
+    lng: item?.lng ?? null,
+  };
+}
+
 function buildWheel() {
   wheel.innerHTML = "";
   if (!restaurants.length) return;
@@ -75,7 +91,8 @@ function buildWheel() {
   const labelRadius = 33;
   const slice = sliceAngle();
 
-  restaurants.forEach((name, i) => {
+  restaurants.forEach((restaurant, i) => {
+    const name = restaurantName(restaurant);
     const fromTop = i * slice;
     const startDeg = -90 + fromTop;
     const endDeg = startDeg + slice;
@@ -123,15 +140,47 @@ function setSpinningUI() {
   if (hubBtn) hubBtn.disabled = true;
 }
 
-function setDoneUI(picked) {
+async function fetchReverseAddress({ name, lat, lng }) {
+  const params = new URLSearchParams();
+  if (name) params.set("name", name);
+  params.set("lat", String(lat));
+  params.set("lng", String(lng));
+  const response = await fetch(`/api/reverse?${params.toString()}`);
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || "주소를 찾지 못했어요.");
+  }
+  return (data.address || "").trim();
+}
+
+async function setDoneUI(picked) {
+  const restaurant = normalizeRestaurant(picked);
   resultCard.classList.remove("is-spinning");
   resultCard.classList.add("is-done");
   statusChip.textContent = "확정";
-  resultName.textContent = picked;
-  resultHint.textContent = `${locationTitle} 근처 · 여기로 가요`;
+  resultName.textContent = restaurant.name;
   spinBtnLabel.textContent = "다시 돌리기";
   spinBtnSub.textContent = "다른 식당 다시 뽑기";
   if (hubBtn) hubBtn.disabled = false;
+
+  if (restaurant.address) {
+    resultHint.textContent = restaurant.address;
+    return;
+  }
+
+  if (restaurant.lat != null && restaurant.lng != null) {
+    resultHint.textContent = "주소 찾는 중...";
+    try {
+      const address = await fetchReverseAddress(restaurant);
+      resultHint.textContent = address || "주소를 찾지 못했어요";
+      restaurant.address = address;
+    } catch (_error) {
+      resultHint.textContent = "주소를 찾지 못했어요";
+    }
+    return;
+  }
+
+  resultHint.textContent = "주소를 찾지 못했어요";
 }
 
 function setReadyUI() {
@@ -293,7 +342,7 @@ async function applyLocation(payload) {
   setModalLoading(true, "nearby");
   try {
     const data = await fetchNearby(payload);
-    restaurants = (data.restaurants || []).slice(0, 15);
+    restaurants = (data.restaurants || []).slice(0, 15).map(normalizeRestaurant);
     if (restaurants.length < 2) {
       throw new Error("룰렛을 만들 식당이 부족해요. 다른 위치를 시도해 주세요.");
     }
@@ -337,11 +386,11 @@ function spin() {
   wheel.style.transform = `rotate(${currentRotation}deg)`;
 }
 
-function finishSpin() {
+async function finishSpin() {
   if (!spinning || pendingIndex === null) return;
 
   const picked = restaurants[pendingIndex];
-  setDoneUI(picked);
+  await setDoneUI(picked);
   spinBtn.disabled = false;
   wheel.classList.remove("spinning");
   rouletteWrap.classList.remove("is-spinning");

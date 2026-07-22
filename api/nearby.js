@@ -176,6 +176,20 @@ out center tags;
   throw error;
 }
 
+function restaurantAddressFromTags(tags) {
+  const full = String(tags["addr:full"] || "").trim();
+  if (full) return full;
+  const street = String(tags["addr:street"] || "").trim();
+  const house = String(tags["addr:housenumber"] || "").trim();
+  const city = String(
+    tags["addr:city"] || tags["addr:district"] || tags["addr:suburb"] || ""
+  ).trim();
+  const parts = [];
+  if (street) parts.push(house ? `${street} ${house}` : street);
+  if (city) parts.push(city);
+  return parts.join(" ");
+}
+
 function parseRestaurants(data, lat, lng) {
   const elements = data.elements || [];
   const scored = [];
@@ -199,7 +213,15 @@ function parseRestaurants(data, lat, lng) {
     }
 
     seen.add(name);
-    scored.push([haversineM(lat, lng, elat, elng), name]);
+    scored.push([
+      haversineM(lat, lng, elat, elng),
+      {
+        name,
+        address: restaurantAddressFromTags(tags),
+        lat: elat,
+        lng: elng,
+      },
+    ]);
   }
 
   scored.sort((a, b) => a[0] - b[0]);

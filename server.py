@@ -340,7 +340,27 @@ def haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     return 2 * radius * math.asin(math.sqrt(a))
 
 
-def fetch_restaurants(lat: float, lng: float, radius_m: int = 1500) -> list[str]:
+def restaurant_address_from_tags(tags: dict) -> str:
+    full = (tags.get("addr:full") or "").strip()
+    if full:
+        return full
+    street = (tags.get("addr:street") or "").strip()
+    house = (tags.get("addr:housenumber") or "").strip()
+    city = (
+        tags.get("addr:city")
+        or tags.get("addr:district")
+        or tags.get("addr:suburb")
+        or ""
+    ).strip()
+    parts: list[str] = []
+    if street:
+        parts.append(f"{street} {house}".strip() if house else street)
+    if city:
+        parts.append(city)
+    return " ".join(parts)
+
+
+def fetch_restaurants(lat: float, lng: float, radius_m: int = 1500) -> list[dict]:
     query = f"""
 [out:json][timeout:25];
 (
@@ -383,7 +403,7 @@ out center tags;
 
     elements = data.get("elements") or []
 
-    scored: list[tuple[float, str]] = []
+    scored: list[tuple[float, dict]] = []
     seen: set[str] = set()
 
     for element in elements:
@@ -401,17 +421,47 @@ out center tags;
             elat, elng = float(center["lat"]), float(center["lon"])
 
         seen.add(name)
-        scored.append((haversine_m(lat, lng, elat, elng), name))
+        scored.append(
+            (
+                haversine_m(lat, lng, elat, elng),
+                {
+                    "name": name,
+                    "address": restaurant_address_from_tags(tags),
+                    "lat": elat,
+                    "lng": elng,
+                },
+            )
+        )
 
     # 가까운 순으로 정렬한 뒤, 후보 풀에서 매번 15곳을 랜덤 추출
     scored.sort(key=lambda item: item[0])
-    pool = [name for _, name in scored[:60]]
+    pool = [item for _, item in scored[:60]]
     if len(pool) <= 15:
         random.shuffle(pool)
         return pool
     picked = random.sample(pool, 15)
     random.shuffle(picked)
     return picked
+
+
+def lookup_restaurant_address(name: str, lat: float, lng: float) -> str:
+    """확정 식당 주소 조회: 네이버 지역검색 우선, 없으면 Nominatim 역지오코딩."""
+    if name and naver_credentials():
+        try:
+            candidates = _naver_local_search(name, limit=5)
+            if candidates:
+                best = min(
+                    candidates,
+                    key=lambda place: haversine_m(lat, lng, place["lat"], place["lng"]),
+                )
+                # 너무 먼 후보는 다른 동명의 식당일 수 있어 제외
+                if haversine_m(lat, lng, best["lat"], best["lng"]) <= 800:
+                    address = (best.get("address") or "").strip()
+                    if address:
+                        return address
+        except Exception:  # noqa: BLE001
+            pass
+    return reverse_geocode_label(lat, lng)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -425,6 +475,9 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/nearby":
             self.handle_nearby(urllib.parse.parse_qs(parsed.query))
+            return
+        if parsed.path == "/api/reverse":
+            self.handle_reverse(urllib.parse.parse_qs(parsed.query))
             return
         return super().do_GET()
 
@@ -450,6 +503,21 @@ class Handler(SimpleHTTPRequestHandler):
             )
         except Exception as error:  # noqa: BLE001
             self.json_response({"error": str(error), "places": []}, 500)
+
+    def handle_reverse(self, query_map: dict):
+        try:
+            lat_raw = (query_map.get("lat") or [""])[0].strip()
+            lng_raw = (query_map.get("lng") or [""])[0].strip()
+            name = (query_map.get("name") or [""])[0].strip()
+            if not lat_raw or not lng_raw:
+                self.json_response({"error": "좌표가 필요해요.", "address": ""}, 400)
+                return
+            lat = float(lat_raw)
+            lng = float(lng_raw)
+            address = lookup_restaurant_address(name, lat, lng)
+            self.json_response({"address": address, "lat": lat, "lng": lng, "name": name})
+        except Exception as error:  # noqa: BLE001
+            self.json_response({"error": str(error), "address": ""}, 500)
 
     def handle_nearby(self, query_map: dict):
         try:

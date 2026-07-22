@@ -16,6 +16,7 @@
 - 현재 위치 사용
 - 근처 식당 후보 중 매번 15곳을 랜덤으로 뽑아 룰렛 구성
 - 돌리기 / 다시 돌리기
+- 확정 시 선택한 식당 주소 표시
 
 ---
 
@@ -70,7 +71,8 @@ what-to-eat-roulette/
 ├── env.example        # 네이버 검색 API 키 예시
 ├── api/
 │   ├── places.js      # 위치 후보 검색
-│   └── nearby.js      # 근처 식당 검색
+│   ├── nearby.js      # 근처 식당 검색
+│   └── reverse.js     # 확정 식당 주소 조회
 ├── vercel.json
 ├── package.json
 └── README.md
