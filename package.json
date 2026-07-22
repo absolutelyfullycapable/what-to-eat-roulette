@@ -1,0 +1,7 @@
+{
+  "name": "what-to-eat-roulette",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  }
+}
