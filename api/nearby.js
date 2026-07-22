@@ -71,6 +71,56 @@ async function geocodePlace(query) {
   };
 }
 
+function formatReverseLabel(hit) {
+  const addr = hit.address || {};
+  for (const key of ["amenity", "building", "shop", "tourism", "leisure", "office"]) {
+    const named = String(addr[key] || "").trim();
+    if (named) return named;
+  }
+
+  const road = String(addr.road || addr.pedestrian || addr.footway || "").trim();
+  const house = String(addr.house_number || "").trim();
+  const neighbourhood = String(
+    addr.neighbourhood || addr.suburb || addr.quarter || addr.village || ""
+  ).trim();
+  const borough = String(
+    addr.borough || addr.city_district || addr.district || addr.county || ""
+  ).trim();
+  const city = String(addr.city || addr.town || "").trim();
+
+  const primary = road ? `${road}${house ? ` ${house}` : ""}`.trim() : neighbourhood;
+  const secondary = road && neighbourhood ? neighbourhood : borough || city;
+  if (primary && secondary && !primary.includes(secondary)) {
+    return `${primary} · ${secondary}`;
+  }
+  if (primary) return primary;
+  if (secondary) return secondary;
+
+  const display = String(hit.display_name || "").trim();
+  const parts = display.split(",").map((part) => part.trim()).filter(Boolean);
+  if (parts.length) return parts.slice(0, 2).join(" · ");
+  return "현재 위치";
+}
+
+async function reverseGeocodeLabel(lat, lng) {
+  const params = new URLSearchParams({
+    lat: String(lat),
+    lon: String(lng),
+    format: "json",
+    addressdetails: "1",
+    zoom: "18",
+    "accept-language": "ko",
+  });
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?${params}`,
+    { headers: { "User-Agent": USER_AGENT, Accept: "application/json" } }
+  );
+  if (!response.ok) return "현재 위치";
+  const hit = await response.json();
+  if (!hit || hit.error) return "현재 위치";
+  return formatReverseLabel(hit);
+}
+
 async function fetchOverpass(lat, lng, radiusM) {
   const query = `
 [out:json][timeout:25];
@@ -194,7 +244,11 @@ module.exports = async function handler(req, res) {
     if (latRaw && lngRaw) {
       lat = Number(latRaw);
       lng = Number(lngRaw);
-      placeName = nameRaw || "현재 위치";
+      if (!nameRaw || nameRaw === "현재 위치") {
+        placeName = await reverseGeocodeLabel(lat, lng);
+      } else {
+        placeName = nameRaw;
+      }
     } else if (query) {
       const place = await geocodePlace(query);
       placeName = place.name;

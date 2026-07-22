@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parent
 PORT = 8765
 USER_AGENT = "what-to-eat-roulette/1.0 (https://github.com/absolutelyfullycapable/what-to-eat-roulette)"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"
 NAVER_LOCAL_URL = "https://openapi.naver.com/v1/search/local.json"
 # 공개 Overpass 서버는 가끔 바빠서 504/429를 냅니다. 여러 미러를 돌아가며 시도합니다.
 OVERPASS_URLS = [
@@ -262,6 +263,73 @@ def geocode_place(query: str) -> tuple[str, float, float]:
     place = search_places(query, limit=1)[0]
     return place["name"], place["lat"], place["lng"]
 
+
+def format_reverse_label(hit: dict) -> str:
+    """역지오코딩 결과를 짧은 한글 주소 라벨로 정리."""
+    addr = hit.get("address") or {}
+    for key in ("amenity", "building", "shop", "tourism", "leisure", "office"):
+        named = (addr.get(key) or "").strip()
+        if named:
+            return named
+
+    road = (addr.get("road") or addr.get("pedestrian") or addr.get("footway") or "").strip()
+    house = (addr.get("house_number") or "").strip()
+    neighbourhood = (
+        addr.get("neighbourhood")
+        or addr.get("suburb")
+        or addr.get("quarter")
+        or addr.get("village")
+        or ""
+    ).strip()
+    borough = (
+        addr.get("borough")
+        or addr.get("city_district")
+        or addr.get("district")
+        or addr.get("county")
+        or ""
+    ).strip()
+    city = (addr.get("city") or addr.get("town") or "").strip()
+
+    primary = f"{road} {house}".strip() if road else neighbourhood
+    secondary = neighbourhood if road and neighbourhood else (borough or city)
+    if primary and secondary and secondary not in primary:
+        return f"{primary} · {secondary}"
+    if primary:
+        return primary
+    if secondary:
+        return secondary
+
+    display = (hit.get("display_name") or "").strip()
+    parts = [part.strip() for part in display.split(",") if part.strip()]
+    if parts:
+        return " · ".join(parts[:2])
+    return "현재 위치"
+
+
+def reverse_geocode_label(lat: float, lng: float) -> str:
+    """좌표 → 짧은 주소 라벨. Nominatim 초당 1회 제한 준수."""
+    global _last_nominatim_at
+    wait = 1.05 - (time.time() - _last_nominatim_at)
+    if wait > 0:
+        time.sleep(wait)
+
+    params = urllib.parse.urlencode(
+        {
+            "lat": f"{lat:.7f}",
+            "lon": f"{lng:.7f}",
+            "format": "json",
+            "addressdetails": "1",
+            "zoom": "18",
+            "accept-language": "ko",
+        }
+    )
+    hit = http_json(f"{NOMINATIM_REVERSE_URL}?{params}")
+    _last_nominatim_at = time.time()
+    if not isinstance(hit, dict) or hit.get("error"):
+        return "현재 위치"
+    return format_reverse_label(hit)
+
+
 def haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     radius = 6371000.0
     p1, p2 = math.radians(lat1), math.radians(lat2)
@@ -386,7 +454,11 @@ class Handler(SimpleHTTPRequestHandler):
             if lat_raw and lng_raw:
                 lat = float(lat_raw)
                 lng = float(lng_raw)
-                place_name = name_raw or "현재 위치"
+                # GPS 등 좌표만 온 경우(또는 '현재 위치')는 주소로 변환
+                if not name_raw or name_raw == "현재 위치":
+                    place_name = reverse_geocode_label(lat, lng)
+                else:
+                    place_name = name_raw
             elif query:
                 place_name, lat, lng = geocode_place(query)
             else:

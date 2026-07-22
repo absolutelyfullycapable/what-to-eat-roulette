@@ -378,7 +378,6 @@ geoBtn.addEventListener("click", () => {
       applyLocation({
         lat: position.coords.latitude,
         lng: position.coords.longitude,
-        name: "현재 위치",
       });
     },
     () => {
