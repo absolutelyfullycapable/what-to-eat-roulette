@@ -2,7 +2,11 @@
 
 근처 식당으로 오늘의 메뉴를 뽑는 룰렛 웹앱입니다. 점심·저녁 등 식사 시간에 국한하지 않고 사용할 수 있어요.
 
-배포 주소: https://what-to-eat-roulette.vercel.app
+---
+
+## 배포 주소
+
+[what-to-eat-roulette.vercel.app](https://what-to-eat-roulette.vercel.app/)
 
 ---
 
